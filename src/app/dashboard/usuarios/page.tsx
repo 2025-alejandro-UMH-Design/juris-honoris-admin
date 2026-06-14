@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { Eye, KeyRound, Star, StarOff, X, RefreshCw, Search } from 'lucide-react'
+import { Eye, KeyRound, Star, StarOff, X, RefreshCw, Search, Pencil, Trash2 } from 'lucide-react'
 import { api } from '@/lib/api'
 
 interface User {
@@ -43,13 +43,29 @@ export default function UsuariosPage() {
   const [loading, setLoading] = useState(true)
   const [search,  setSearch]  = useState('')
   const [role,    setRole]    = useState('')
-  const [selected,  setSelected]  = useState<User | null>(null)
-  const [resetUser, setResetUser] = useState<User | null>(null)
+
+  // Modales
+  const [selected,   setSelected]   = useState<User | null>(null)
+  const [resetUser,  setResetUser]  = useState<User | null>(null)
+  const [editUser,   setEditUser]   = useState<User | null>(null)
+  const [deleteUser, setDeleteUser] = useState<User | null>(null)
+
+  // Estado reset password
   const [newPwd,    setNewPwd]    = useState('')
   const [showPwd,   setShowPwd]   = useState(false)
   const [resetting, setResetting] = useState(false)
   const [resetMsg,  setResetMsg]  = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
-  const [busyPlan,  setBusyPlan]  = useState<string | null>(null)
+
+  // Estado edit
+  const [editForm, setEditForm] = useState({ full_name: '', phone: '', dni: '', role: '' })
+  const [saving,   setSaving]   = useState(false)
+  const [editMsg,  setEditMsg]  = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
+
+  // Estado delete
+  const [deleting, setDeleting] = useState(false)
+
+  // Estado plan
+  const [busyPlan, setBusyPlan] = useState<string | null>(null)
 
   async function load() {
     setLoading(true)
@@ -65,6 +81,7 @@ export default function UsuariosPage() {
 
   useEffect(() => { load() }, [role])
 
+  // ── Plan ──────────────────────────────────────────────────────
   async function changePlan(id: string, plan: 'free' | 'premium') {
     setBusyPlan(id)
     try {
@@ -76,6 +93,16 @@ export default function UsuariosPage() {
     } finally {
       setBusyPlan(null)
     }
+  }
+
+  // ── Reset password ────────────────────────────────────────────
+  function openReset(u: User) {
+    setSelected(null)
+    setEditUser(null)
+    setResetUser(u)
+    setResetMsg(null)
+    setNewPwd('')
+    setShowPwd(false)
   }
 
   async function resetPassword() {
@@ -93,12 +120,47 @@ export default function UsuariosPage() {
     }
   }
 
-  function openReset(u: User) {
+  // ── Edit ──────────────────────────────────────────────────────
+  function openEdit(u: User) {
     setSelected(null)
-    setResetUser(u)
-    setResetMsg(null)
-    setNewPwd('')
-    setShowPwd(false)
+    setEditUser(u)
+    setEditForm({ full_name: u.full_name || '', phone: u.phone || '', dni: u.dni || '', role: u.role })
+    setEditMsg(null)
+  }
+
+  async function saveEdit() {
+    if (!editUser) return
+    setSaving(true)
+    setEditMsg(null)
+    try {
+      const updated = await api.put<User>(`/admin/users/${editUser.id}`, {
+        full_name: editForm.full_name || null,
+        phone:     editForm.phone     || null,
+        dni:       editForm.dni       || null,
+        role:      editForm.role      || null,
+      })
+      setUsers(u => u.map(x => x.id === updated.id ? updated : x))
+      setEditMsg({ type: 'ok', text: 'Cambios guardados correctamente.' })
+    } catch (e: unknown) {
+      setEditMsg({ type: 'err', text: e instanceof Error ? e.message : 'Error al guardar' })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // ── Delete ────────────────────────────────────────────────────
+  async function confirmDelete() {
+    if (!deleteUser) return
+    setDeleting(true)
+    try {
+      await api.delete(`/admin/users/${deleteUser.id}`)
+      setUsers(u => u.filter(x => x.id !== deleteUser.id))
+      setDeleteUser(null)
+    } catch (e: unknown) {
+      alert(e instanceof Error ? e.message : 'Error al eliminar')
+    } finally {
+      setDeleting(false)
+    }
   }
 
   const filtered = search
@@ -180,18 +242,31 @@ export default function UsuariosPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`text-xs px-2 py-0.5 rounded-md font-medium border ${
-                      u.plan === 'premium'
-                        ? 'bg-amber-50 text-amber-700 border-amber-100'
-                        : 'bg-slate-50 text-slate-500 border-slate-200'
-                    }`}>
-                      {u.plan === 'premium' ? 'Premium' : 'Gratuito'}
-                    </span>
+                    {u.role === 'client' ? (
+                      <button
+                        onClick={() => changePlan(u.id, u.plan === 'premium' ? 'free' : 'premium')}
+                        disabled={busyPlan === u.id}
+                        title={u.plan === 'premium' ? 'Click para quitar Premium' : 'Click para dar Premium'}
+                        className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-lg font-semibold border transition-all disabled:opacity-40 ${
+                          u.plan === 'premium'
+                            ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+                            : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200'
+                        }`}
+                      >
+                        {u.plan === 'premium'
+                          ? <Star size={11} className="fill-amber-500 text-amber-500" />
+                          : <StarOff size={11} />
+                        }
+                        {u.plan === 'premium' ? 'Premium' : 'Gratuito'}
+                      </button>
+                    ) : (
+                      <span className="text-xs text-slate-400">—</span>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     {u.auth_provider === 'google' ? (
                       <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md font-medium bg-red-50 text-red-600 border border-red-100">
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+                        <svg width="11" height="11" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
                         Google
                       </span>
                     ) : (
@@ -207,7 +282,7 @@ export default function UsuariosPage() {
                     {formatDate(u.created_at)}
                   </td>
                   <td className="px-4 py-3">
-                    <div className="flex items-center gap-1.5 justify-end">
+                    <div className="flex items-center gap-1 justify-end">
                       <button
                         onClick={() => setSelected(u)}
                         title="Ver información"
@@ -216,26 +291,26 @@ export default function UsuariosPage() {
                         <Eye size={14} />
                       </button>
                       <button
+                        onClick={() => openEdit(u)}
+                        title="Editar usuario"
+                        className="p-1.5 rounded-lg text-slate-400 hover:bg-blue-50 hover:text-blue-600 transition-all"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      <button
                         onClick={() => openReset(u)}
                         title="Resetear contraseña"
                         className="p-1.5 rounded-lg text-slate-400 hover:bg-orange-50 hover:text-orange-600 transition-all"
                       >
                         <KeyRound size={14} />
                       </button>
-                      {u.role === 'client' && (
-                        <button
-                          onClick={() => changePlan(u.id, u.plan === 'premium' ? 'free' : 'premium')}
-                          disabled={busyPlan === u.id}
-                          title={u.plan === 'premium' ? 'Quitar Premium' : 'Dar Premium'}
-                          className={`p-1.5 rounded-lg transition-all disabled:opacity-40 ${
-                            u.plan === 'premium'
-                              ? 'text-amber-500 hover:bg-amber-50 hover:text-amber-700'
-                              : 'text-slate-400 hover:bg-amber-50 hover:text-amber-500'
-                          }`}
-                        >
-                          {u.plan === 'premium' ? <StarOff size={14} /> : <Star size={14} />}
-                        </button>
-                      )}
+                      <button
+                        onClick={() => setDeleteUser(u)}
+                        title="Eliminar usuario"
+                        className="p-1.5 rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600 transition-all"
+                      >
+                        <Trash2 size={14} />
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -278,18 +353,21 @@ export default function UsuariosPage() {
                 <Field label="Actualizado"    value={formatDate(selected.updated_at)} />
               </div>
 
-              <div className="flex items-start gap-2 bg-slate-50 border border-slate-100 rounded-xl px-3.5 py-3 text-xs text-slate-500">
-                <KeyRound size={13} className="mt-0.5 shrink-0 text-slate-400" />
-                La contraseña está cifrada con bcrypt. Usa el botón de reseteo para establecer una nueva.
-              </div>
-
               <div className="flex gap-2 pt-1">
+                <button
+                  onClick={() => openEdit(selected)}
+                  className="flex-1 flex items-center justify-center gap-2 py-2 text-sm font-medium rounded-xl border border-blue-200 text-blue-700 hover:bg-blue-50 transition-all"
+                >
+                  <Pencil size={14} />
+                  Editar
+                </button>
                 {selected.role === 'client' && (
                   <button
                     disabled={busyPlan === selected.id}
                     onClick={() => changePlan(selected.id, selected.plan === 'premium' ? 'free' : 'premium')}
-                    className="flex-1 py-2 text-sm font-medium rounded-xl border border-brand text-brand hover:bg-brand hover:text-white disabled:opacity-50 transition-all"
+                    className="flex-1 flex items-center justify-center gap-2 py-2 text-sm font-medium rounded-xl border border-amber-200 text-amber-700 hover:bg-amber-50 disabled:opacity-50 transition-all"
                   >
+                    <Star size={14} />
                     {selected.plan === 'premium' ? 'Quitar Premium' : 'Dar Premium'}
                   </button>
                 )}
@@ -298,7 +376,101 @@ export default function UsuariosPage() {
                   className="flex-1 flex items-center justify-center gap-2 py-2 text-sm font-medium bg-slate-800 text-white rounded-xl hover:bg-slate-700 transition-all"
                 >
                   <KeyRound size={14} />
-                  Resetear contraseña
+                  Resetear
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal editar usuario ───────────────────────────────────────────── */}
+      {editUser && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <h2 className="font-semibold text-slate-800">Editar usuario</h2>
+              <button onClick={() => setEditUser(null)} className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <div className="flex items-center gap-2.5 bg-slate-50 rounded-xl px-4 py-3">
+                <div className="w-8 h-8 rounded-full bg-brand/10 flex items-center justify-center text-brand text-xs font-bold shrink-0">
+                  {(editUser.full_name || editUser.email)[0].toUpperCase()}
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-slate-800">{editUser.full_name || '—'}</p>
+                  <p className="text-xs text-slate-400">{editUser.email}</p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Nombre completo</label>
+                  <input
+                    type="text"
+                    value={editForm.full_name}
+                    onChange={e => setEditForm(f => ({ ...f, full_name: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Teléfono</label>
+                  <input
+                    type="text"
+                    value={editForm.phone}
+                    onChange={e => setEditForm(f => ({ ...f, phone: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">DNI</label>
+                  <input
+                    type="text"
+                    value={editForm.dni}
+                    onChange={e => setEditForm(f => ({ ...f, dni: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Rol</label>
+                  <select
+                    value={editForm.role}
+                    onChange={e => setEditForm(f => ({ ...f, role: e.target.value }))}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand transition-all bg-white"
+                  >
+                    <option value="client">Cliente</option>
+                    <option value="lawyer">Abogado</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+              </div>
+
+              {editMsg && (
+                <div className={`px-4 py-3 rounded-xl text-sm ${
+                  editMsg.type === 'ok'
+                    ? 'bg-emerald-50 border border-emerald-100 text-emerald-700'
+                    : 'bg-red-50 border border-red-100 text-red-600'
+                }`}>
+                  {editMsg.text}
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={() => setEditUser(null)}
+                  className="flex-1 py-2.5 text-sm border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 transition-all"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={saveEdit}
+                  disabled={saving}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-semibold bg-brand text-white rounded-xl hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                >
+                  <Pencil size={14} />
+                  {saving ? 'Guardando...' : 'Guardar cambios'}
                 </button>
               </div>
             </div>
@@ -376,6 +548,52 @@ export default function UsuariosPage() {
                 >
                   <KeyRound size={14} />
                   {resetting ? 'Guardando...' : 'Confirmar'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Modal confirmar eliminación ────────────────────────────────────── */}
+      {deleteUser && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <h2 className="font-semibold text-slate-800">Eliminar usuario</h2>
+              <button onClick={() => setDeleteUser(null)} className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all">
+                <X size={16} />
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <div className="flex items-center gap-2.5 bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+                <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center text-red-600 text-xs font-bold shrink-0">
+                  {(deleteUser.full_name || deleteUser.email)[0].toUpperCase()}
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-slate-800">{deleteUser.full_name || '—'}</p>
+                  <p className="text-xs text-slate-400">{deleteUser.email}</p>
+                </div>
+              </div>
+
+              <div className="bg-red-50 border border-red-100 rounded-xl px-4 py-3 text-sm text-red-700">
+                Esta acción es <strong>irreversible</strong>. Se eliminará el usuario y todos sus datos asociados.
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={() => setDeleteUser(null)}
+                  className="flex-1 py-2.5 text-sm border border-slate-200 text-slate-600 rounded-xl hover:bg-slate-50 transition-all"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  disabled={deleting}
+                  className="flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-semibold bg-red-600 text-white rounded-xl hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                >
+                  <Trash2 size={14} />
+                  {deleting ? 'Eliminando...' : 'Eliminar'}
                 </button>
               </div>
             </div>
