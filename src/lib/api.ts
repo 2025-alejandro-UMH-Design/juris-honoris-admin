@@ -30,9 +30,12 @@ export const api = {
 // Auth helpers
 export function saveToken(token: string) {
   localStorage.setItem('jh_admin_token', token)
+  // Session cookie for server-side middleware check (not HttpOnly — set from JS)
+  document.cookie = `jh_admin_session=1; path=/; SameSite=Strict; Secure`
 }
 export function clearToken() {
   localStorage.removeItem('jh_admin_token')
+  document.cookie = 'jh_admin_session=; path=/; max-age=0; SameSite=Strict'
 }
 export function isLoggedIn() {
   if (typeof window === 'undefined') return false
@@ -40,7 +43,9 @@ export function isLoggedIn() {
   if (!token) return false
   try {
     const payload = JSON.parse(atob(token.split('.')[1]))
-    return payload.exp * 1000 > Date.now() && payload.role === 'admin'
+    const valid = payload.exp * 1000 > Date.now() && payload.role === 'admin'
+    if (!valid) clearToken()
+    return valid
   } catch {
     return false
   }
