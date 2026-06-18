@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Scale, Eye, EyeOff } from 'lucide-react'
-import { api, saveToken } from '@/lib/api'
+import { doLogin, saveToken } from '@/lib/api'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -17,14 +17,8 @@ export default function LoginPage() {
     setError('')
     setLoading(true)
     try {
-      const res = await api.post<{ token: string; user: { role: string } }>(
-        '/auth/login', { email, password }
-      )
-      if (res.user.role !== 'admin') {
-        setError('Acceso denegado. Solo administradores.')
-        return
-      }
-      saveToken(res.token)
+      await doLogin(email, password)
+      saveToken('session') // sets jh_admin_session cookie for isLoggedIn() UX check
       router.push('/dashboard')
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Error al iniciar sesión')

@@ -10,7 +10,7 @@ import {
   FileText,
   LogOut,
 } from 'lucide-react'
-import { clearToken } from '@/lib/api'
+import { clearToken, doLogout } from '@/lib/api'
 
 const nav = [
   { href: '/dashboard',             icon: LayoutDashboard, label: 'Dashboard' },
@@ -25,8 +25,9 @@ export default function Sidebar() {
   const pathname = usePathname()
   const router   = useRouter()
 
-  function logout() {
+  async function logout() {
     clearToken()
+    await doLogout()
     router.push('/login')
   }
 
