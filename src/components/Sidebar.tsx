@@ -8,17 +8,19 @@ import {
   BrainCircuit,
   Database,
   FileText,
+  HardDrive,
   LogOut,
 } from 'lucide-react'
 import { clearToken, doLogout } from '@/lib/api'
 
 const nav = [
-  { href: '/dashboard',             icon: LayoutDashboard, label: 'Dashboard' },
-  { href: '/dashboard/abogados',    icon: Scale,           label: 'Abogados' },
-  { href: '/dashboard/usuarios',    icon: Users,           label: 'Usuarios' },
-  { href: '/dashboard/solicitudes', icon: FileText,        label: 'Solicitudes' },
-  { href: '/dashboard/ia-config',   icon: BrainCircuit,    label: 'Config IA' },
-  { href: '/dashboard/base-datos',  icon: Database,        label: 'Base de Datos' },
+  { href: '/dashboard',                icon: LayoutDashboard, label: 'Dashboard' },
+  { href: '/dashboard/abogados',       icon: Scale,           label: 'Abogados' },
+  { href: '/dashboard/usuarios',       icon: Users,           label: 'Usuarios' },
+  { href: '/dashboard/solicitudes',    icon: FileText,        label: 'Solicitudes' },
+  { href: '/dashboard/ia-config',      icon: BrainCircuit,    label: 'Config IA' },
+  { href: '/dashboard/base-datos',     icon: Database,        label: 'Base de Datos' },
+  { href: '/dashboard/almacenamiento', icon: HardDrive,       label: 'Almacenamiento' },
 ]
 
 export default function Sidebar() {
